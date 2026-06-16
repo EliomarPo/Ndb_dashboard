@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Industrial - KPIs NDB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
+
+    <header class="bg-gray-800 border-b border-gray-700 p-4 shadow-lg">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-emerald-600 rounded-lg text-white font-bold tracking-wider text-xl">NDB</div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-white">Painel de Controlo Operacional</h1>
+                    <p class="text-xs text-gray-400">Análise automatizada de Colheita e Transbordo</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-4 w-full md:w-auto">
+                <div class="relative flex items-center justify-center bg-gray-700 hover:bg-gray-600 border border-dashed border-gray-500 rounded-lg px-4 py-2 cursor-pointer transition w-full md:w-64">
+                    <input type="file" id="excelFile" accept=".xlsx, .xls" class="absolute inset-0 opacity-0 cursor-pointer" onchange="handleFile(event)" />
+                    <span class="text-xs font-medium text-gray-200" id="uploadStatus">📁 Carregar KPIS - NDB.xlsx</span>
+                </div>
+                
+                <div class="flex flex-col min-w-[140px]">
+                    <select id="dateSelect" disabled onchange="updateDashboard()" class="bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg p-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:opacity-50">
+                        <option value="">Aguardando Ficheiro...</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+        
+        <div id="placeholder" class="text-center py-20 bg-gray-850 border border-gray-700 rounded-2xl shadow-inner">
+            <div class="text-6xl mb-4">📊</div>
+            <h2 class="text-xl font-semibold text-gray-300">Nenhum dado carregado</h2>
+            <p class="text-sm text-gray-500 max-w-md mx-auto mt-2">Por favor, carregue o ficheiro Excel original exportado pelo sistema para visualizar os indicadores das frentes de colheita.</p>
+        </div>
+
+        <div id="dashboardContent" class="hidden space-y-6">
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-md">
+                    <div class="flex justify-between items-start">
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Moagem do Dia</p>
+                        <span class="px-2 py-0.5 bg-emerald-900/50 text-emerald-400 text-xs rounded border border-emerald-700" id="cardCanaAcum">Acumulado</span>
+                    </div>
+                    <p class="text-2xl font-bold mt-2 text-white" id="lblTotalCana">0.00 <span class="text-xs font-normal text-gray-400">Ton</span></p>
+                    <p class="text-xs text-gray-400 mt-1" id="lblTotalCanaAcum">Acumulado: 0.00 Ton</p>
+                </div>
+
+                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-md">
+                    <div class="flex justify-between items-start">
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Combustível Total</p>
+                        <span class="px-2 py-0.5 bg-amber-900/50 text-amber-400 text-xs rounded border border-amber-700">Diesel</span>
+                    </div>
+                    <p class="text-2xl font-bold mt-2 text-white" id="lblTotalDiesel">0.00 <span class="text-xs font-normal text-gray-400">Lts</span></p>
+                    <p class="text-xs text-gray-400 mt-1" id="lblTotalDieselAcum">Acumulado: 0.00 Lts</p>
+                </div>
+
+                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-md">
+                    <div class="flex justify-between items-start">
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Rendimento Global</p>
+                        <span class="px-2 py-0.5 bg-blue-900/50 text-blue-400 text-xs rounded border border-blue-700">Média</span>
+                    </div>
+                    <p class="text-2xl font-bold mt-2 text-white" id="lblLtTon">0.00 <span class="text-xs font-normal text-gray-400">Lts/Ton</span></p>
+                    <p class="text-xs text-gray-400 mt-1" id="lblLtTonAcum">Acumulado: 0.00 Lts/Ton</p>
+                </div>
+
+                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-md">
+                    <div class="flex justify-between items-start">
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Disp. Mecânica Média</p>
+                        <span class="px-2 py-0.5 bg-purple-900/50 text-purple-400 text-xs rounded border border-purple-700">Frota</span>
+                    </div>
+                    <p class="text-2xl font-bold mt-2 text-white" id="lblDispGeral">0.0%</p>
+                    <p class="text-xs text-gray-400 mt-1">Colhedoras e Transbordos ativos</p>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 rounded-xl border border-gray-700 shadow-lg overflow-hidden">
+                <div class="p-5 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center">
+                    <h3 class="font-bold text-lg text-white">Desempenho Consolidado por Frente</h3>
+                    <span class="text-xs text-gray-400">Valores Diários e [Acumulados]</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-750 text-gray-300 text-xs uppercase font-semibold tracking-wider border-b border-gray-700">
+                                <th class="p-4">Frente</th>
+                                <th class="p-4 text-right">Cana Dia [Acum] (Ton)</th>
+                                <th class="p-4 text-right">Cargas Dia [Acum]</th>
+                                <th class="p-4 text-right">Diesel Total (Lts)</th>
+                                <th class="p-4 text-right">Consumo (Lts/Ton)</th>
+                                <th class="p-4 text-right">Disp. Colhedoras</th>
+                                <th class="p-4 text-right">Disp. Transbordo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="frentesTableBody" class="divide-y divide-gray-700 text-sm">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-gray-800 rounded-xl border border-gray-700 p-5 shadow-md">
+                    <h4 class="font-bold text-base text-white mb-4 border-b border-gray-700 pb-2 flex justify-between">
+                        <span>🚜 Top Frotas - Colhedoras (Dia)</span>
+                        <span class="text-xs text-emerald-400 font-normal">Frente Ativa</span>
+                    </h4>
+                    <div class="overflow-y-auto max-h-64 space-y-2" id="colhedorasDetailList">
+                        </div>
+                </div>
+
+                <div class="bg-gray-800 rounded-xl border border-gray-700 p-5 shadow-md">
+                    <h4 class="font-bold text-base text-white mb-4 border-b border-gray-700 pb-2 flex justify-between">
+                        <span>🚛 Top Frotas - Transbordos (Dia)</span>
+                        <span class="text-xs text-blue-400 font-normal">Volume</span>
+                    </h4>
+                    <div class="overflow-y-auto max-h-64 space-y-2" id="transbordosDetailList">
+                        </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // Objeto global de armazenamento de dados brutos limpos
+        let rawDatabase = {
+            colhedoras: [],
+            transbordos: [],
+            diesel: [],
+            disponibilidade: []
+        };
+
+        // Função de normalização de Chaves (Garante correspondência perfeita)
+        function normalizeKey(str) {
+            if (!str) return "";
+            return str.toString().toUpperCase()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
+                .replace(/[^A-Z0-9_]/g, "_") // Transforma caracteres especiais em _
+                .replace(/^_+|_+$/g, ""); // Corta _ extras nas pontas
+        }
+
+        function formatExcelDate(val) {
+            if (!val) return "";
+            if (typeof val === 'number') {
+                const date = new Date((val - 25569) * 86400 * 1000);
+                return date.toISOString().split('T')[0];
+            }
+            let str = String(val).trim();
+            if (str.includes('/')) {
+                let parts = str.split('/');
+                if (parts[2] && parts[2].length === 4) {
+                    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                }
+            }
+            return str.split(' ')[0]; // Retorna YYYY-MM-DD estável
+        }
+
+        // Leitura e mapeamento do Ficheiro Excel
+        function handleFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById('uploadStatus').innerText = "⏳ A processar ficheiro...";
+            
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+
+                    // Mapeamento dinâmico baseado nas Abas Reais identificadas no seu Excel
+                    const mapSheet = (sheetName) => {
+                        const sheet = workbook.Sheets[sheetName];
+                        if (!sheet) return [];
+                        const json = XLSX.utils.sheet_to_json(sheet);
+                        return json.map(row => {
+                            let normRow = {};
+                            for (let key in row) {
+                                normRow[normalizeKey(key)] = row[key];
+                            }
+                            return normRow;
+                        });
+                    };
+
+                    rawDatabase.colhedoras = mapSheet("BASECOLHEDORA");
+                    rawDatabase.transbordos = mapSheet("BASETRANSBORDO");
+                    rawDatabase.diesel = mapSheet("BASEDIESEL");
+                    rawDatabase.disponibilidade = mapSheet("DISPONIBILIDADE");
+
+                    // Extração de datas únicas para alimentar o seletor
+                    let uniqueDates = new Set();
+                    rawDatabase.colhedoras.forEach(r => { if(r.DATA) uniqueDates.add(formatExcelDate(r.DATA)); });
+                    rawDatabase.transbordos.forEach(r => { if(r.DATA) uniqueDates.add(formatExcelDate(r.DATA)); });
+                    rawDatabase.diesel.forEach(r => { if(r.DATA) uniqueDates.add(formatExcelDate(r.DATA)); });
+
+                    let sortedDates = Array.from(uniqueDates).sort().reverse();
+
+                    if(sortedDates.length === 0) {
+                        alert("Não foram encontradas colunas de data válidas nas planilhas.");
+                        return;
+                    }
+
+                    // Configurar UI do Seletor de Data
+                    const select = document.getElementById("dateSelect");
+                    select.innerHTML = "";
+                    sortedDates.forEach(d => {
+                        let opt = document.createElement("option");
+                        opt.value = d;
+                        opt.innerText = d.split('-').reverse().join('/'); // Exibe como DD/MM/YYYY
+                        select.appendChild(opt);
+                    });
+                    select.disabled = false;
+
+                    // Mudar estado visual
+                    document.getElementById("placeholder").classList.add("hidden");
+                    document.getElementById("dashboardContent").classList.remove("hidden");
+                    document.getElementById('uploadStatus').innerText = "✅ " + file.name;
+
+                    // Renderizar painel com a data mais recente padrão
+                    updateDashboard();
+
+                } catch (err) {
+                    console.error(err);
+                    alert("Erro ao processar a estrutura interna do Excel. Verifique o ficheiro.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Função Principal de Atualização dos Cálculos e KPIs
+        function updateDashboard() {
+            const targetDate = document.getElementById("dateSelect").value;
+            if (!targetDate) return;
+
+            // 1. Filtragens Diárias
+            const colDia = rawDatabase.colhedoras.filter(r => formatExcelDate(r.DATA) === targetDate);
+            const traDia = rawDatabase.transbordos.filter(r => formatExcelDate(r.DATA) === targetDate);
+            const dieDia = rawDatabase.diesel.filter(r => formatExcelDate(r.DATA) === targetDate);
+
+            // 2. Filtragens Acumuladas (Até à data selecionada)
+            const colAcum = rawDatabase.colhedoras.filter(r => formatExcelDate(r.DATA) <= targetDate);
+            const traAcum = rawDatabase.transbordos.filter(r => formatExcelDate(r.DATA) <= targetDate);
+            const dieAcum = rawDatabase.diesel.filter(r => formatExcelDate(r.DATA) <= targetDate);
+
+            // Estrutura de agregação por Frente
+            let frentes = {};
+
+            const initFrente = (fName) => {
+                if (!frentes[fName]) {
+                    frentes[fName] = {
+                        nome: fName,
+                        canaDia: 0, canaAcum: 0,
+                        cargasDia: 0, cargasAcum: 0,
+                        dieselDia: 0, dieselAcum: 0,
+                        dispColSum: 0, dispColCount: 0,
+                        dispTraSum: 0, dispTraCount: 0
+                    };
+                }
+            };
+
+            // Somatórios de Colhedoras
+            colDia.forEach(r => { let f = r.FRENTE || "Sem Frente"; initFrente(f); frentes[f].canaDia += Number(r.TONELADAS) || 0; frentes[f].cargasDia += Number(r.TOTAL_CARGAS) || 0; });
+            colAcum.forEach(r => { let f = r.FRENTE || "Sem Frente"; initFrente(f); frentes[f].canaAcum += Number(r.TONELADAS) || 0; frentes[f].cargasAcum += Number(r.TOTAL_CARGAS) || 0; });
+
+            // Somatórios de Transbordos (Somar à cana se o seu KPI consolidar ambos, ou contabilizar volumes)
+            traDia.forEach(r => { let f = r.FRENTE || "Sem Frente"; initFrente(f); });
+            
+            // Somatórios de Combustível (BASEDIESEL usa coluna LT ou LT_TON)
+            dieDia.forEach(r => { let f = r.FRENTE || "Sem Frente"; initFrente(f); frentes[f].dieselDia += Number(r.LT) || 0; });
+            dieAcum.forEach(r => { let f = r.FRENTE || "Sem Frente"; initFrente(f); frentes[f].dieselAcum += Number(r.LT) || 0; });
+
+            // Somatórios de Disponibilidade Mecânica (Aba DISPONIBILIDADE)
+            rawDatabase.disponibilidade.forEach(r => {
+                let f = r.FRENTE || "Sem Frente";
+                if (frentes[f]) {
+                    let tipo = String(r.TIPO_EQUIPAMENTO).toUpperCase();
+                    let valorDisp = Number(r.DISPONIBILIDADE_MECANICA) || 0;
+                    if (tipo.includes("COLHEDORA")) {
+                        frentes[f].dispColSum += valorDisp;
+                        frentes[f].dispColCount++;
+                    } else {
+                        frentes[f].dispTraSum += valorDisp;
+                        frentes[f].dispTraCount++;
+                    }
+                }
+            });
+
+            // --- RENDERIZAR CARDS GLOBAIS ---
+            let totalCanaDia = Object.values(frentes).reduce((a, b) => a + b.canaDia, 0);
+            let totalCanaAcum = Object.values(frentes).reduce((a, b) => a + b.canaAcum, 0);
+            let totalDieselDia = Object.values(frentes).reduce((a, b) => a + b.dieselDia, 0);
+            let totalDieselAcum = Object.values(frentes).reduce((a, b) => a + b.dieselAcum, 0);
+
+            document.getElementById("lblTotalCana").innerHTML = totalCanaDia.toLocaleString('pt-PT', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' <span class="text-xs font-normal text-gray-400">Ton</span>';
+            document.getElementById("lblTotalCanaAcum").innerText = "Acumulado: " + totalCanaAcum.toLocaleString('pt-PT', {maximumFractionDigits: 2}) + " Ton";
+
+            document.getElementById("lblTotalDiesel").innerHTML = totalDieselDia.toLocaleString('pt-PT', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' <span class="text-xs font-normal text-gray-400">Lts</span>';
+            document.getElementById("lblTotalDieselAcum").innerText = "Acumulado: " + totalDieselAcum.toLocaleString('pt-PT', {maximumFractionDigits: 0}) + " Lts";
+
+            let ltTonDia = totalCanaDia > 0 ? (totalDieselDia / totalCanaDia) : 0;
+            let ltTonAcum = totalCanaAcum > 0 ? (totalDieselAcum / totalCanaAcum) : 0;
+            document.getElementById("lblLtTon").innerText = ltTonDia.toFixed(2) + " Lts/Ton";
+            document.getElementById("lblLtTonAcum").innerText = "Acumulado: " + ltTonAcum.toFixed(2) + " Lts/Ton";
+
+            // Média global de disponibilidade
+            let gDispSum = 0, gDispCount = 0;
+            rawDatabase.disponibilidade.forEach(r => { if(r.DISPONIBILIDADE_MECANICA) { gDispSum += Number(r.DISPONIBILIDADE_MECANICA); gDispCount++; } });
+            document.getElementById("lblDispGeral").innerText = gDispCount > 0 ? ((gDispSum / gDispCount) * 100).toFixed(1) + "%" : "0.0%";
+
+            // --- RENDERIZAR TABELA DE FRENTES ---
+            const tbody = document.getElementById("frentesTableBody");
+            tbody.innerHTML = "";
+
+            Object.values(frentes).sort((a,b) => a.nome.localeCompare(b.nome)).forEach(f => {
+                let consumoDia = f.canaDia > 0 ? (f.dieselDia / f.canaDia).toFixed(2) : "0.00";
+                let mColDisp = f.dispColCount > 0 ? ((f.dispColSum / f.dispColCount) * 100).toFixed(1) + "%" : "-";
+                let mTraDisp = f.dispTraCount > 0 ? ((f.dispTraSum / f.dispTraCount) * 100).toFixed(1) + "%" : "-";
+
+                let row = document.createElement("tr");
+                row.className = "hover:bg-gray-750 transition border-b border-gray-700";
+                row.innerHTML = `
+                    <td class="p-4 font-semibold text-emerald-400">${f.nome}</td>
+                    <td class="p-4 text-right font-medium">${f.canaDia.toLocaleString('pt-PT', {maximumFractionDigits:1})} <span class="text-gray-500 text-xs">[${f.canaAcum.toLocaleString('pt-PT', {maximumFractionDigits:0})}]</span></td>
+                    <td class="p-4 text-right text-gray-300">${f.cargasDia} <span class="text-gray-500 text-xs">[${f.cargasAcum}]</span></td>
+                    <td class="p-4 text-right text-amber-400">${f.dieselDia.toLocaleString('pt-PT', {maximumFractionDigits:0})}</td>
+                    <td class="p-4 text-right font-semibold text-blue-400">${consumoDia}</td>
+                    <td class="p-4 text-right text-purple-300">${mColDisp}</td>
+                    <td class="p-4 text-right text-indigo-300">${mTraDisp}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            // --- LISTAS DE DETALHE DE EQUIPAMENTO (TOP DIA) ---
+            const colList = document.getElementById("colhedorasDetailList");
+            colList.innerHTML = "";
+            colDia.sort((a,b) => (b.TONELADAS || 0) - (a.TONELADAS || 0)).slice(0, 8).forEach(c => {
+                colList.innerHTML += `
+                    <div class="flex justify-between items-center bg-gray-750 p-2.5 rounded-lg border border-gray-700 text-xs">
+                        <div>
+                            <span class="font-bold text-gray-200">Frota ${c.FROTA || 'N/D'}</span>
+                            <p class="text-[10px] text-gray-400 truncate max-w-[180px]">${c.MODELO || 'Modelo Geral'}</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="font-bold text-emerald-400">${(c.TONELADAS || 0).toFixed(1)} Ton</span>
+                            <p class="text-[9px] text-gray-500">${c.FRENTE || 'Sem Frente'}</p>
+                        </div>
+                    </div>
+                `;
+            });
+
+            const traList = document.getElementById("transbordosDetailList");
+            traList.innerHTML = "";
+            traDia.sort((a,b) => (b.TONELADAS || 0) - (a.TONELADAS || 0)).slice(0, 8).forEach(t => {
+                traList.innerHTML += `
+                    <div class="flex justify-between items-center bg-gray-750 p-2.5 rounded-lg border border-gray-700 text-xs">
+                        <div>
+                            <span class="font-bold text-gray-200">Frota ${t.FROTA || 'N/D'}</span>
+                            <p class="text-[10px] text-gray-400 truncate max-w-[180px]">${t.MODELO || 'Trator'}</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="font-bold text-blue-400">${(t.TONELADAS || 0).toFixed(1)} Ton</span>
+                            <p class="text-[9px] text-gray-500">${t.FRENTE || 'Sem Frente'}</p>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+    </script>
+</body>
+</html>
