@@ -1,376 +1,660 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Industrial - KPIs NDB</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Dashboard Agrícola - Importador</title>
+    <!-- Bibliotecas: Leitura de Excel, Geração de Gráficos e Plugin de Rótulos de Dados -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-</head>
-<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <style>
+        :root {
+            --primary: #2e7d32;
+            --primary-hover: #1b5e20;
+            --primary-light: #e8f5e9;
+            --accent: #1565c0;
+            --purple: #6a1b9a;
+            --text-dark: #263238;
+            --text-muted: #78909c;
+            --bg-body: #f4f6f8;
+            --card-bg: #ffffff;
+        }
 
-    <header class="bg-gray-800 border-b border-gray-700 p-4 shadow-lg">
-        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-            <div class="flex items-center gap-3">
-                <div class="p-2 bg-emerald-600 rounded-lg text-white font-bold tracking-wider text-xl">NDB</div>
-                <div>
-                    <h1 class="text-xl font-bold tracking-tight text-white">Painel de Controlo Operacional</h1>
-                    <p class="text-xs text-gray-400">Análise automatizada de Colheita e Transbordo</p>
-                </div>
-            </div>
-            
-            <div class="flex items-center gap-4 w-full md:w-auto">
-                <div class="relative flex items-center justify-center bg-gray-700 hover:bg-gray-600 border border-dashed border-gray-500 rounded-lg px-4 py-2 cursor-pointer transition w-full md:w-64">
-                    <input type="file" id="excelFile" accept=".xlsx, .xls" class="absolute inset-0 opacity-0 cursor-pointer" onchange="handleFile(event)" />
-                    <span class="text-xs font-medium text-gray-200" id="uploadStatus">📁 Carregar KPIS - NDB.xlsx</span>
-                </div>
-                
-                <div class="flex flex-col min-w-[140px]">
-                    <select id="dateSelect" disabled onchange="updateDashboard()" class="bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg p-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:opacity-50">
-                        <option value="">Aguardando Ficheiro...</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-    </header>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-dark);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
 
-    <main class="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+        .header-container {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 24px;
+            border-left: 5px solid var(--primary);
+            padding-left: 10px;
+        }
+
+        .dashboard-title {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+
+        .upload-btn-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .btn-upload {
+            border: 2px solid var(--primary);
+            color: white;
+            background-color: var(--primary);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-upload:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+        }
+
+        .upload-btn-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .card-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+            margin-bottom: 25px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 6px;
+            height: 100%;
+        }
+
+        .card-area::before { background-color: var(--purple); }
+        .card-estimado::before { background-color: var(--accent); }
+        .card-real::before { background-color: var(--primary); }
+        .card-ton::before { background-color: #f57c00; }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .card-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .card-icon { font-size: 1.3rem; }
+
+        .card-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin: 4px 0;
+        }
+
+        .card-subvalues {
+            display: flex;
+            justify-content: space-between;
+            margin: 12px 0 6px 0;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            padding: 8px;
+            border: 1px dashed #e0e0e0;
+        }
+
+        .subvalue-box {
+            display: flex;
+            flex-direction: column;
+            width: 48%;
+        }
+
+        .subvalue-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .subvalue-number {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-top: 2px;
+        }
+
+        .subvalue-number.acionista { color: var(--primary); }
+        .subvalue-number.fornecedor { color: #e65100; }
+
+        .mini-chart-wrapper {
+            width: 100%;
+            height: 110px;
+            margin-top: 10px;
+            position: relative;
+        }
+
+        .card-footer {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            border-top: 1px solid #f0f2f5;
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+
+        .highlight {
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        /* Container da Tabela do Ranking */
+        .ranking-container {
+            width: 100%;
+            max-width: 1200px;
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .ranking-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-top: 0;
+            margin-bottom: 5px;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ranking-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 15px;
+            margin-top: 0;
+        }
+
+        .ranking-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        .ranking-table th {
+            background-color: #f8f9fa;
+            color: var(--text-muted);
+            padding: 12px;
+            font-weight: 600;
+            border-bottom: 2px solid #eceff1;
+        }
+
+        .ranking-table td {
+            padding: 12px;
+            border-bottom: 1px solid #f0f2f5;
+            color: var(--text-dark);
+        }
+
+        .ranking-table tr:hover {
+            background-color: #fcfdfe;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .badge-acionista { background-color: #e8f5e9; color: #2e7d32; }
+        .badge-fornecedor { background-color: #fff3e0; color: #e65100; }
+        .badge-misto { background-color: #e1f5fe; color: #0288d1; }
         
-        <div id="placeholder" class="text-center py-20 bg-gray-850 border border-gray-700 rounded-2xl shadow-inner">
-            <div class="text-6xl mb-4">📊</div>
-            <h2 class="text-xl font-semibold text-gray-300">Nenhum dado carregado</h2>
-            <p class="text-sm text-gray-500 max-w-md mx-auto mt-2">Por favor, carregue o ficheiro Excel original exportado pelo sistema para visualizar os indicadores das frentes de colheita.</p>
-        </div>
+        .pos-badge {
+            background-color: #cfd8dc;
+            color: #37474f;
+            width: 24px;
+            height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+        tr:nth-child(1) .pos-badge { background-color: #ffd700; color: #5d4037; } 
+        tr:nth-child(2) .pos-badge { background-color: #c0c0c0; color: #455a64; } 
+        tr:nth-child(3) .pos-badge { background-color: #cd7f32; color: #ffffff; } 
 
-        <div id="dashboardContent" class="hidden space-y-6">
+        .tch-bold {
+            font-weight: 700;
+            color: var(--primary);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-container">
+        <h1 class="dashboard-title"><strong>Dashboard Agrícola</strong> - Resumo de Produção</h1>
+        
+        <div class="upload-btn-wrapper">
+            <button class="btn-upload">📁 Importar Planilha Excel</button>
+            <input type="file" id="excel-file" accept=".xlsx, .xls, .csv" />
+        </div>
+    </div>
+
+    <div class="card-container">
+        
+        <!-- CARD: Área Líquida Total -->
+        <div class="card card-area">
+            <div class="card-header">
+                <span class="card-title">Área Líquida Total</span>
+                <span class="card-icon">🗺️</span>
+            </div>
+            <div class="card-value" id="area-liquida">0,00</div>
             
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-md">
-                    <div class="flex justify-between items-start">
-                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Moagem do Dia</p>
-                        <span class="px-2 py-0.5 bg-emerald-900/50 text-emerald-400 text-xs rounded border border-emerald-700" id="cardCanaAcum">Acumulado</span>
-                    </div>
-                    <p class="text-2xl font-bold mt-2 text-white" id="lblTotalCana">0.00 <span class="text-xs font-normal text-gray-400">Ton</span></p>
-                    <p class="text-xs text-gray-400 mt-1" id="lblTotalCanaAcum">Acumulado: 0.00 Ton</p>
+            <div class="card-subvalues">
+                <div class="subvalue-box">
+                    <span class="subvalue-label">Acionista</span>
+                    <span class="subvalue-number acionista" id="area-acionista">0,00</span>
                 </div>
-
-                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-md">
-                    <div class="flex justify-between items-start">
-                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Combustível Total</p>
-                        <span class="px-2 py-0.5 bg-amber-900/50 text-amber-400 text-xs rounded border border-amber-700">Diesel</span>
-                    </div>
-                    <p class="text-2xl font-bold mt-2 text-white" id="lblTotalDiesel">0.00 <span class="text-xs font-normal text-gray-400">Lts</span></p>
-                    <p class="text-xs text-gray-400 mt-1" id="lblTotalDieselAcum">Acumulado: 0.00 Lts</p>
-                </div>
-
-                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-md">
-                    <div class="flex justify-between items-start">
-                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Rendimento Global</p>
-                        <span class="px-2 py-0.5 bg-blue-900/50 text-blue-400 text-xs rounded border border-blue-700">Média</span>
-                    </div>
-                    <p class="text-2xl font-bold mt-2 text-white" id="lblLtTon">0.00 <span class="text-xs font-normal text-gray-400">Lts/Ton</span></p>
-                    <p class="text-xs text-gray-400 mt-1" id="lblLtTonAcum">Acumulado: 0.00 Lts/Ton</p>
-                </div>
-
-                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-md">
-                    <div class="flex justify-between items-start">
-                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Disp. Mecânica Média</p>
-                        <span class="px-2 py-0.5 bg-purple-900/50 text-purple-400 text-xs rounded border border-purple-700">Frota</span>
-                    </div>
-                    <p class="text-2xl font-bold mt-2 text-white" id="lblDispGeral">0.0%</p>
-                    <p class="text-xs text-gray-400 mt-1">Colhedoras e Transbordos ativos</p>
+                <div class="subvalue-box" style="border-left: 1px solid #e0e0e0; padding-left: 10px;">
+                    <span class="subvalue-label">Fornecedor</span>
+                    <span class="subvalue-number fornecedor" id="area-fornecedor">0,00</span>
                 </div>
             </div>
 
-            <div class="bg-gray-800 rounded-xl border border-gray-700 shadow-lg overflow-hidden">
-                <div class="p-5 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center">
-                    <h3 class="font-bold text-lg text-white">Desempenho Consolidado por Frente</h3>
-                    <span class="text-xs text-gray-400">Valores Diários e [Acumulados]</span>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="bg-gray-750 text-gray-300 text-xs uppercase font-semibold tracking-wider border-b border-gray-700">
-                                <th class="p-4">Frente</th>
-                                <th class="p-4 text-right">Cana Dia [Acum] (Ton)</th>
-                                <th class="p-4 text-right">Cargas Dia [Acum]</th>
-                                <th class="p-4 text-right">Diesel Total (Lts)</th>
-                                <th class="p-4 text-right">Consumo (Lts/Ton)</th>
-                                <th class="p-4 text-right">Disp. Colhedoras</th>
-                                <th class="p-4 text-right">Disp. Transbordo</th>
-                            </tr>
-                        </thead>
-                        <tbody id="frentesTableBody" class="divide-y divide-gray-700 text-sm">
-                            </tbody>
-                    </table>
-                </div>
+            <div class="card-footer">
+                Apenas talhões com <span class="highlight">TON/ha</span> preenchido
             </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="bg-gray-800 rounded-xl border border-gray-700 p-5 shadow-md">
-                    <h4 class="font-bold text-base text-white mb-4 border-b border-gray-700 pb-2 flex justify-between">
-                        <span>🚜 Top Frotas - Colhedoras (Dia)</span>
-                        <span class="text-xs text-emerald-400 font-normal">Frente Ativa</span>
-                    </h4>
-                    <div class="overflow-y-auto max-h-64 space-y-2" id="colhedorasDetailList">
-                        </div>
-                </div>
-
-                <div class="bg-gray-800 rounded-xl border border-gray-700 p-5 shadow-md">
-                    <h4 class="font-bold text-base text-white mb-4 border-b border-gray-700 pb-2 flex justify-between">
-                        <span>🚛 Top Frotas - Transbordos (Dia)</span>
-                        <span class="text-xs text-blue-400 font-normal">Volume</span>
-                    </h4>
-                    <div class="overflow-y-auto max-h-64 space-y-2" id="transbordosDetailList">
-                        </div>
-                </div>
-            </div>
-
         </div>
-    </main>
+        
+        <!-- CARD: TCH Estimado Médio -->
+        <div class="card card-estimado">
+            <div class="card-header">
+                <span class="card-title">TCH Estimado Médio</span>
+                <span class="card-icon">📊</span>
+            </div>
+            <div class="card-value" id="tch-estimado">0,00</div>
+
+            <div class="card-subvalues">
+                <div class="subvalue-box">
+                    <span class="subvalue-label">Acionista</span>
+                    <span class="subvalue-number acionista" id="tch-est-acionista">0,00</span>
+                </div>
+                <div class="subvalue-box" style="border-left: 1px solid #e0e0e0; padding-left: 10px;">
+                    <span class="subvalue-label">Fornecedor</span>
+                    <span class="subvalue-number fornecedor" id="tch-est-fornecedor">0,00</span>
+                </div>
+            </div>
+
+            <div class="card-footer">
+                Média planejada da área (<span class="highlight">TON/ha</span>)
+            </div>
+        </div>
+
+        <!-- CARD: TCH Real com Gráfico e Valores -->
+        <div class="card card-real">
+            <div class="card-header">
+                <span class="card-title">TCH Real Médio</span>
+                <span class="card-icon">🚜</span>
+            </div>
+            <div class="card-value" id="tch-real">--</div>
+            
+            <div class="mini-chart-wrapper">
+                <canvas id="miniChartReal"></canvas>
+            </div>
+
+            <div class="card-footer">
+                Produtividade por vínculo (<span class="highlight">TON/ha</span>)
+            </div>
+        </div>
+
+        <!-- CARD: TON Previsto Total -->
+        <div class="card card-ton">
+            <div class="card-header">
+                <span class="card-title">TON Previsto Total</span>
+                <span class="card-icon">⚖️</span>
+            </div>
+            <div class="card-value" id="ton-previsto">0,00</div>
+
+            <div class="card-subvalues">
+                <div class="subvalue-box">
+                    <span class="subvalue-label">Acionista</span>
+                    <span class="subvalue-number acionista" id="ton-acionista">0,0</span>
+                </div>
+                <div class="subvalue-box" style="border-left: 1px solid #e0e0e0; padding-left: 10px;">
+                    <span class="subvalue-label">Fornecedor</span>
+                    <span class="subvalue-number fornecedor" id="ton-fornecedor">0,0</span>
+                </div>
+            </div>
+
+            <div class="card-footer">
+                Volume acumulado previsto (<span class="highlight">TON</span>)
+            </div>
+        </div>
+
+    </div>
+
+    <!-- SEÇÃO ATUALIZADA: Consolidação de Média por Propriedade Rural -->
+    <div class="ranking-container">
+        <div class="ranking-title">🏆 Ranking - Top 10 Propriedades Rurais (TCH Real Médio)</div>
+        <p class="ranking-subtitle">Valores consolidados calculando a produtividade média total de cada propriedade.</p>
+        <table class="ranking-table">
+            <thead>
+                <tr>
+                    <th style="width: 80px;">Posição</th>
+                    <th>Propriedade Rural</th>
+                    <th style="width: 150px;">Vínculo</th>
+                    <th style="width: 180px; text-align: right;">Produtividade Média Real</th>
+                </tr>
+            </thead>
+            <tbody id="ranking-corpo">
+                <tr>
+                    <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 30px;">
+                        Aguardando a importação da planilha para gerar o ranking...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 
     <script>
-        // Objeto global de armazenamento de dados brutos limpos
-        let rawDatabase = {
-            colhedoras: [],
-            transbordos: [],
-            diesel: [],
-            disponibilidade: []
-        };
+        let meuMiniChart = null; 
 
-        // Função de normalização de Chaves (Garante correspondência perfeita)
-        function normalizeKey(str) {
-            if (!str) return "";
-            return str.toString().toUpperCase()
-                .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
-                .replace(/[^A-Z0-9_]/g, "_") // Transforma caracteres especiais em _
-                .replace(/^_+|_+$/g, ""); // Corta _ extras nas pontas
-        }
+        Chart.register(ChartDataLabels);
 
-        function formatExcelDate(val) {
-            if (!val) return "";
-            if (typeof val === 'number') {
-                const date = new Date((val - 25569) * 86400 * 1000);
-                return date.toISOString().split('T')[0];
-            }
-            let str = String(val).trim();
-            if (str.includes('/')) {
-                let parts = str.split('/');
-                if (parts[2] && parts[2].length === 4) {
-                    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                }
-            }
-            return str.split(' ')[0]; // Retorna YYYY-MM-DD estável
-        }
-
-        // Leitura e mapeamento do Ficheiro Excel
-        function handleFile(e) {
+        document.getElementById('excel-file').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
 
-            document.getElementById('uploadStatus').innerText = "⏳ A processar ficheiro...";
-            
             const reader = new FileReader();
+            
             reader.onload = function(evt) {
-                try {
-                    const data = new Uint8Array(evt.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
+                const data = new Uint8Array(evt.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                
+                processarDadosAgro(jsonData);
+            };
+            
+            reader.readAsArrayBuffer(file);
+        });
 
-                    // Mapeamento dinâmico baseado nas Abas Reais identificadas no seu Excel
-                    const mapSheet = (sheetName) => {
-                        const sheet = workbook.Sheets[sheetName];
-                        if (!sheet) return [];
-                        const json = XLSX.utils.sheet_to_json(sheet);
-                        return json.map(row => {
-                            let normRow = {};
-                            for (let key in row) {
-                                normRow[normalizeKey(key)] = row[key];
-                            }
-                            return normRow;
-                        });
-                    };
+        function processarDadosAgro(dados) {
+            let totalAreaLiquida = 0;
+            let totalTonPrevisto = 0;
+            let somaTchEstimado = 0;
+            let somaTchReal = 0;
+            let contagemTchEstimado = 0;
+            let contagemTchReal = 0;
 
-                    rawDatabase.colhedoras = mapSheet("BASECOLHEDORA");
-                    rawDatabase.transbordos = mapSheet("BASETRANSBORDO");
-                    rawDatabase.diesel = mapSheet("BASEDIESEL");
-                    rawDatabase.disponibilidade = mapSheet("DISPONIBILIDADE");
+            let areaAcionista = 0; let areaFornecedor = 0;
+            let tonAcionista = 0;  let tonFornecedor = 0;
 
-                    // Extração de datas únicas para alimentar o seletor
-                    let uniqueDates = new Set();
-                    rawDatabase.colhedoras.forEach(r => { if(r.DATA) uniqueDates.add(formatExcelDate(r.DATA)); });
-                    rawDatabase.transbordos.forEach(r => { if(r.DATA) uniqueDates.add(formatExcelDate(r.DATA)); });
-                    rawDatabase.diesel.forEach(r => { if(r.DATA) uniqueDates.add(formatExcelDate(r.DATA)); });
+            let somaTchEstAcionista = 0, contTchEstAcionista = 0;
+            let somaTchEstFornecedor = 0, contTchEstFornecedor = 0;
 
-                    let sortedDates = Array.from(uniqueDates).sort().reverse();
+            let somaRealAcionista = 0, contRealAcionista = 0;
+            let somaRealFornecedor = 0, contRealFornecedor = 0;
 
-                    if(sortedDates.length === 0) {
-                        alert("Não foram encontradas colunas de data válidas nas planilhas.");
-                        return;
+            // Objeto de mapa para consolidar dados repetidos da mesma propriedade
+            let mapaPropriedades = {};
+
+            dados.forEach(linha => {
+                const areaLiq = parseFloat(linha['Área Líquida (ha)']) || parseFloat(linha['Área Líquida']) || parseFloat(linha['Area Liquida']) || 0;
+                const prodPrevista = parseFloat(linha['Produção (TON)']) || 0;
+                const tchEst = parseFloat(linha['TON/ha']) || 0;
+                const tchReal = parseFloat(linha['Produtividade (TON/ha)']) || parseFloat(linha['Produtividade']) || 0;
+
+                const tipoProdutor = String(linha['Tipo'] || inlineVinculo(linha) || '').toUpperCase().trim();
+                const nomePropriedade = String(linha['Propriedade Rural'] || linha['Propriedade'] || linha['Fazenda'] || linha['Sítio'] || linha['Sitio'] || 'Não Identificada').trim();
+
+                function inlineVinculo(l) { return l['Vínculo'] || l['Vinculo'] || l['Categoria'] || ''; }
+
+                if (tchEst > 0) {
+                    totalAreaLiquida += areaLiq;
+                    totalTonPrevisto += prodPrevista;
+                    somaTchEstimado += tchEst;
+                    contagemTchEstimado++;
+
+                    if (tipoProdutor.includes('ACIONISTA')) {
+                        areaAcionista += areaLiq;
+                        tonAcionista += prodPrevista;
+                        somaTchEstAcionista += tchEst;
+                        contTchEstAcionista++;
+                    } else if (tipoProdutor.includes('FORNECEDOR')) {
+                        areaFornecedor += areaLiq;
+                        tonFornecedor += prodPrevista;
+                        somaTchEstFornecedor += tchEst;
+                        contTchEstFornecedor++;
+                    }
+                }
+
+                if (tchReal > 0) {
+                    somaTchReal += tchReal;
+                    contagemTchReal++;
+
+                    let vinculoLimpo = 'Outro';
+                    if (tipoProdutor.includes('ACIONISTA')) {
+                        somaRealAcionista += tchReal;
+                        contRealAcionista++;
+                        vinculoLimpo = 'Acionista';
+                    } else if (tipoProdutor.includes('FORNECEDOR')) {
+                        somaRealFornecedor += tchReal;
+                        contRealFornecedor++;
+                        vinculoLimpo = 'Fornecedor';
                     }
 
-                    // Configurar UI do Seletor de Data
-                    const select = document.getElementById("dateSelect");
-                    select.innerHTML = "";
-                    sortedDates.forEach(d => {
-                        let opt = document.createElement("option");
-                        opt.value = d;
-                        opt.innerText = d.split('-').reverse().join('/'); // Exibe como DD/MM/YYYY
-                        select.appendChild(opt);
-                    });
-                    select.disabled = false;
+                    // Se a propriedade ainda não foi adicionada no mapa, inicializa ela
+                    if (!mapaPropriedades[nomePropriedade]) {
+                        mapaPropriedades[nomePropriedade] = {
+                            nome: nomePropriedade,
+                            somaTch: 0,
+                            ocorrencias: 0,
+                            tipos: new Set()
+                        };
+                    }
 
-                    // Mudar estado visual
-                    document.getElementById("placeholder").classList.add("hidden");
-                    document.getElementById("dashboardContent").classList.remove("hidden");
-                    document.getElementById('uploadStatus').innerText = "✅ " + file.name;
-
-                    // Renderizar painel com a data mais recente padrão
-                    updateDashboard();
-
-                } catch (err) {
-                    console.error(err);
-                    alert("Erro ao processar a estrutura interna do Excel. Verifique o ficheiro.");
+                    // Acumula os valores para extrair a média no final
+                    mapaPropriedades[nomePropriedade].somaTch += tchReal;
+                    mapaPropriedades[nomePropriedade].ocorrencias += 1;
+                    mapaPropriedades[nomePropriedade].tipos.add(vinculoLimpo);
                 }
-            };
-            reader.readAsArrayBuffer(file);
+            });
+
+            // Converte o mapa em uma lista calculando a Média Final de cada item
+            let listaConsolidadaRanking = [];
+            for (let chave in mapaPropriedades) {
+                let prop = mapaPropriedades[chave];
+                let mediaFinalTch = prop.somaTch / prop.ocorrencias;
+                
+                let textoVinculo = 'Outro';
+                if (prop.tipos.has('Acionista') && prop.tipos.has('Fornecedor')) {
+                    textoVinculo = 'Misto';
+                } else if (prop.tipos.has('Acionista')) {
+                    textoVinculo = 'Acionista';
+                } else if (prop.tipos.has('Fornecedor')) {
+                    textoVinculo = 'Fornecedor';
+                }
+
+                listaConsolidadaRanking.push({
+                    nome: prop.nome,
+                    tipo: textoVinculo,
+                    tch: mediaFinalTch
+                });
+            }
+
+            const mediaTchEstimado = contagemTchEstimado > 0 ? (somaTchEstimado / contagemTchEstimado) : 0;
+            const mediaTchEstAcionista = contTchEstAcionista > 0 ? (somaTchEstAcionista / contTchEstAcionista) : 0;
+            const mediaTchEstFornecedor = contTchEstFornecedor > 0 ? (somaTchEstFornecedor / contTchEstFornecedor) : 0;
+
+            const mediaTchReal = contagemTchReal > 0 ? (somaTchReal / contagemTchReal) : null;
+            const mediaRealAcionista = contRealAcionista > 0 ? (somaRealAcionista / contRealAcionista) : 0;
+            const mediaRealFornecedor = contRealFornecedor > 0 ? (somaRealFornecedor / contRealFornecedor) : 0;
+
+            document.getElementById('area-liquida').innerText = totalAreaLiquida.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('area-acionista').innerText = areaAcionista.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ha';
+            document.getElementById('area-fornecedor').innerText = areaFornecedor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ha';
+            
+            document.getElementById('tch-estimado').innerText = mediaTchEstimado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('tch-est-acionista').innerText = mediaTchEstAcionista.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('tch-est-fornecedor').innerText = mediaTchEstFornecedor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+            document.getElementById('ton-previsto').innerText = totalTonPrevisto.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+            document.getElementById('ton-acionista').innerText = tonAcionista.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' t';
+            document.getElementById('ton-fornecedor').innerText = tonFornecedor.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' t';
+            
+            if (mediaTchReal !== null) {
+                document.getElementById('tch-real').innerText = mediaTchReal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            } else {
+                document.getElementById('tch-real').innerText = "--";
+            }
+
+            gerarMiniGrafico(mediaRealAcionista, mediaRealFornecedor);
+            
+            // Renderiza a nova lista consolidada no ranking
+            montarTabelaRanking(listaConsolidadaRanking);
         }
 
-        // Função Principal de Atualização dos Cálculos e KPIs
-        function updateDashboard() {
-            const targetDate = document.getElementById("dateSelect").value;
-            if (!targetDate) return;
-
-            // 1. Filtragens Diárias
-            const colDia = rawDatabase.colhedoras.filter(r => formatExcelDate(r.DATA) === targetDate);
-            const traDia = rawDatabase.transbordos.filter(r => formatExcelDate(r.DATA) === targetDate);
-            const dieDia = rawDatabase.diesel.filter(r => formatExcelDate(r.DATA) === targetDate);
-
-            // 2. Filtragens Acumuladas (Até à data selecionada)
-            const colAcum = rawDatabase.colhedoras.filter(r => formatExcelDate(r.DATA) <= targetDate);
-            const traAcum = rawDatabase.transbordos.filter(r => formatExcelDate(r.DATA) <= targetDate);
-            const dieAcum = rawDatabase.diesel.filter(r => formatExcelDate(r.DATA) <= targetDate);
-
-            // Estrutura de agregação por Frente
-            let frentes = {};
-
-            const initFrente = (fName) => {
-                if (!frentes[fName]) {
-                    frentes[fName] = {
-                        nome: fName,
-                        canaDia: 0, canaAcum: 0,
-                        cargasDia: 0, cargasAcum: 0,
-                        dieselDia: 0, dieselAcum: 0,
-                        dispColSum: 0, dispColCount: 0,
-                        dispTraSum: 0, dispTraCount: 0
-                    };
-                }
-            };
-
-            // Somatórios de Colhedoras
-            colDia.forEach(r => { let f = r.FRENTE || "Sem Frente"; initFrente(f); frentes[f].canaDia += Number(r.TONELADAS) || 0; frentes[f].cargasDia += Number(r.TOTAL_CARGAS) || 0; });
-            colAcum.forEach(r => { let f = r.FRENTE || "Sem Frente"; initFrente(f); frentes[f].canaAcum += Number(r.TONELADAS) || 0; frentes[f].cargasAcum += Number(r.TOTAL_CARGAS) || 0; });
-
-            // Somatórios de Transbordos (Somar à cana se o seu KPI consolidar ambos, ou contabilizar volumes)
-            traDia.forEach(r => { let f = r.FRENTE || "Sem Frente"; initFrente(f); });
+        function montarTabelaRanking(lista) {
+            lista.sort((a, b) => b.tch - a.tch);
+            const top10 = lista.slice(0, 10);
+            const corpoTabela = document.getElementById('ranking-corpo');
             
-            // Somatórios de Combustível (BASEDIESEL usa coluna LT ou LT_TON)
-            dieDia.forEach(r => { let f = r.FRENTE || "Sem Frente"; initFrente(f); frentes[f].dieselDia += Number(r.LT) || 0; });
-            dieAcum.forEach(r => { let f = r.FRENTE || "Sem Frente"; initFrente(f); frentes[f].dieselAcum += Number(r.LT) || 0; });
+            corpoTabela.innerHTML = ""; 
 
-            // Somatórios de Disponibilidade Mecânica (Aba DISPONIBILIDADE)
-            rawDatabase.disponibilidade.forEach(r => {
-                let f = r.FRENTE || "Sem Frente";
-                if (frentes[f]) {
-                    let tipo = String(r.TIPO_EQUIPAMENTO).toUpperCase();
-                    let valorDisp = Number(r.DISPONIBILIDADE_MECANICA) || 0;
-                    if (tipo.includes("COLHEDORA")) {
-                        frentes[f].dispColSum += valorDisp;
-                        frentes[f].dispColCount++;
-                    } else {
-                        frentes[f].dispTraSum += valorDisp;
-                        frentes[f].dispTraCount++;
+            if (top10.length === 0) {
+                corpoTabela.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px;">Nenhum dado de TCH Real localizado.</td></tr>`;
+                return;
+            }
+
+            top10.forEach((item, index) => {
+                const tr = document.createElement('tr');
+                
+                let badgeClass = 'badge-fornecedor';
+                if (item.tipo === 'Acionista') badgeClass = 'badge-acionista';
+                if (item.tipo === 'Misto') badgeClass = 'badge-misto';
+
+                const valorFormatado = item.tch.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TON/ha';
+
+                tr.innerHTML = `
+                    <td><span class="pos-badge">${index + 1}</span></td>
+                    <td><strong>${item.nome}</strong></td>
+                    <td><span class="badge ${badgeClass}">${item.tipo}</span></td>
+                    <td style="text-align: right;" class="tch-bold">${valorFormatado}</td>
+                `;
+                corpoTabela.appendChild(tr);
+            });
+        }
+
+        function gerarMiniGrafico(mediaAcionista, mediaFornecedor) {
+            const ctx = document.getElementById('miniChartReal').getContext('2d');
+            if (meuMiniChart) { meuMiniChart.destroy(); }
+
+            meuMiniChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Acionista', 'Fornecedor'],
+                    datasets: [{
+                        data: [mediaAcionista, mediaFornecedor],
+                        backgroundColor: [ '#2e7d32', '#f57c00' ],
+                        borderRadius: 4,
+                        barThickness: 40
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: { top: 20 } },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'top',
+                            offset: 2,
+                            color: '#263238',
+                            font: { weight: 'bold', size: 11 },
+                            formatter: function(value) {
+                                return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TCH';
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 10, weight: '600' }, color: '#546e7a' }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#eceff1' },
+                            ticks: { font: { size: 9 }, color: '#90a4ae', maxTicksLimit: 3 }
+                        }
                     }
                 }
-            });
-
-            // --- RENDERIZAR CARDS GLOBAIS ---
-            let totalCanaDia = Object.values(frentes).reduce((a, b) => a + b.canaDia, 0);
-            let totalCanaAcum = Object.values(frentes).reduce((a, b) => a + b.canaAcum, 0);
-            let totalDieselDia = Object.values(frentes).reduce((a, b) => a + b.dieselDia, 0);
-            let totalDieselAcum = Object.values(frentes).reduce((a, b) => a + b.dieselAcum, 0);
-
-            document.getElementById("lblTotalCana").innerHTML = totalCanaDia.toLocaleString('pt-PT', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' <span class="text-xs font-normal text-gray-400">Ton</span>';
-            document.getElementById("lblTotalCanaAcum").innerText = "Acumulado: " + totalCanaAcum.toLocaleString('pt-PT', {maximumFractionDigits: 2}) + " Ton";
-
-            document.getElementById("lblTotalDiesel").innerHTML = totalDieselDia.toLocaleString('pt-PT', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' <span class="text-xs font-normal text-gray-400">Lts</span>';
-            document.getElementById("lblTotalDieselAcum").innerText = "Acumulado: " + totalDieselAcum.toLocaleString('pt-PT', {maximumFractionDigits: 0}) + " Lts";
-
-            let ltTonDia = totalCanaDia > 0 ? (totalDieselDia / totalCanaDia) : 0;
-            let ltTonAcum = totalCanaAcum > 0 ? (totalDieselAcum / totalCanaAcum) : 0;
-            document.getElementById("lblLtTon").innerText = ltTonDia.toFixed(2) + " Lts/Ton";
-            document.getElementById("lblLtTonAcum").innerText = "Acumulado: " + ltTonAcum.toFixed(2) + " Lts/Ton";
-
-            // Média global de disponibilidade
-            let gDispSum = 0, gDispCount = 0;
-            rawDatabase.disponibilidade.forEach(r => { if(r.DISPONIBILIDADE_MECANICA) { gDispSum += Number(r.DISPONIBILIDADE_MECANICA); gDispCount++; } });
-            document.getElementById("lblDispGeral").innerText = gDispCount > 0 ? ((gDispSum / gDispCount) * 100).toFixed(1) + "%" : "0.0%";
-
-            // --- RENDERIZAR TABELA DE FRENTES ---
-            const tbody = document.getElementById("frentesTableBody");
-            tbody.innerHTML = "";
-
-            Object.values(frentes).sort((a,b) => a.nome.localeCompare(b.nome)).forEach(f => {
-                let consumoDia = f.canaDia > 0 ? (f.dieselDia / f.canaDia).toFixed(2) : "0.00";
-                let mColDisp = f.dispColCount > 0 ? ((f.dispColSum / f.dispColCount) * 100).toFixed(1) + "%" : "-";
-                let mTraDisp = f.dispTraCount > 0 ? ((f.dispTraSum / f.dispTraCount) * 100).toFixed(1) + "%" : "-";
-
-                let row = document.createElement("tr");
-                row.className = "hover:bg-gray-750 transition border-b border-gray-700";
-                row.innerHTML = `
-                    <td class="p-4 font-semibold text-emerald-400">${f.nome}</td>
-                    <td class="p-4 text-right font-medium">${f.canaDia.toLocaleString('pt-PT', {maximumFractionDigits:1})} <span class="text-gray-500 text-xs">[${f.canaAcum.toLocaleString('pt-PT', {maximumFractionDigits:0})}]</span></td>
-                    <td class="p-4 text-right text-gray-300">${f.cargasDia} <span class="text-gray-500 text-xs">[${f.cargasAcum}]</span></td>
-                    <td class="p-4 text-right text-amber-400">${f.dieselDia.toLocaleString('pt-PT', {maximumFractionDigits:0})}</td>
-                    <td class="p-4 text-right font-semibold text-blue-400">${consumoDia}</td>
-                    <td class="p-4 text-right text-purple-300">${mColDisp}</td>
-                    <td class="p-4 text-right text-indigo-300">${mTraDisp}</td>
-                `;
-                tbody.appendChild(row);
-            });
-
-            // --- LISTAS DE DETALHE DE EQUIPAMENTO (TOP DIA) ---
-            const colList = document.getElementById("colhedorasDetailList");
-            colList.innerHTML = "";
-            colDia.sort((a,b) => (b.TONELADAS || 0) - (a.TONELADAS || 0)).slice(0, 8).forEach(c => {
-                colList.innerHTML += `
-                    <div class="flex justify-between items-center bg-gray-750 p-2.5 rounded-lg border border-gray-700 text-xs">
-                        <div>
-                            <span class="font-bold text-gray-200">Frota ${c.FROTA || 'N/D'}</span>
-                            <p class="text-[10px] text-gray-400 truncate max-w-[180px]">${c.MODELO || 'Modelo Geral'}</p>
-                        </div>
-                        <div class="text-right">
-                            <span class="font-bold text-emerald-400">${(c.TONELADAS || 0).toFixed(1)} Ton</span>
-                            <p class="text-[9px] text-gray-500">${c.FRENTE || 'Sem Frente'}</p>
-                        </div>
-                    </div>
-                `;
-            });
-
-            const traList = document.getElementById("transbordosDetailList");
-            traList.innerHTML = "";
-            traDia.sort((a,b) => (b.TONELADAS || 0) - (a.TONELADAS || 0)).slice(0, 8).forEach(t => {
-                traList.innerHTML += `
-                    <div class="flex justify-between items-center bg-gray-750 p-2.5 rounded-lg border border-gray-700 text-xs">
-                        <div>
-                            <span class="font-bold text-gray-200">Frota ${t.FROTA || 'N/D'}</span>
-                            <p class="text-[10px] text-gray-400 truncate max-w-[180px]">${t.MODELO || 'Trator'}</p>
-                        </div>
-                        <div class="text-right">
-                            <span class="font-bold text-blue-400">${(t.TONELADAS || 0).toFixed(1)} Ton</span>
-                            <p class="text-[9px] text-gray-500">${t.FRENTE || 'Sem Frente'}</p>
-                        </div>
-                    </div>
-                `;
             });
         }
     </script>
